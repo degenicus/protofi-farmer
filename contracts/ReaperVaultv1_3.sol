@@ -11,6 +11,8 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
+import "hardhat/console.sol";
+
 /**
  * @dev Implementation of a vault to deposit funds for yield optimizing.
  * This is the contract that receives funds and that users interface with.
@@ -132,8 +134,11 @@ contract ReaperVaultv1_3 is ERC20, Ownable, ReentrancyGuard {
      *  and the balance deployed in other contracts as part of the strategy.
      */
     function balance() public view returns (uint256) {
-        return
-            token.balanceOf(address(this)).add(IStrategy(strategy).balanceOf());
+        console.log("balance()");
+        return token.balanceOf(address(this));
+        //return 1;
+        // return
+        //     token.balanceOf(address(this)).add(IStrategy(strategy).balanceOf());
     }
 
     /**
