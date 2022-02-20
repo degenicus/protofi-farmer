@@ -3,6 +3,7 @@
 import './abstract/ReaperBaseStrategy.sol';
 import './interfaces/IUniswapRouter.sol';
 import './interfaces/IMasterChef.sol';
+import './interfaces/IUniswapV2Pair.sol';
 import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
 
 import "hardhat/console.sol";
@@ -18,28 +19,33 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
     /**
      * @dev Tokens Used:
      * {WFTM} - Required for liquidity routing when doing swaps. Also used to charge fees on yield.
-     * {SCREAM} - The reward token for farming
+     * {PROTO} - The reward token for farming
      * {want} - The vault token the strategy is maximizing
-     * {cWant} - The Scream version of the want token
+     * {lpToken0} - Token 0 of the LP want token
+     * {lpToken1} - Token 1 of the LP want token
      */
     address public constant WFTM = 0x21be370D5312f44cB42ce377BC9b8a0cEF1A4C83;
-    address public constant SCREAM = 0xe0654C8e6fd4D733349ac7E09f6f23DA256bF475;
+    address public constant PROTO = 0xa23c4e69e5Eaf4500F2f9301717f12B578b948FB;
     address public want;
+    address public lpToken0;
+    address public lpToken1;
 
     /**
      * @dev Third Party Contracts:
-     * {SPOOKY_ROUTER} - SpookySwap router
+     * {PROTOFI_ROUTER} - The Protofi router
      */
-    address public constant SPOOKY_ROUTER = 0xF491e7B69E4244ad4002BC14e878a34207E38c29;
-    address public constant masterChef = 0xa71f52aee8311c22b6329EF7715A5B8aBF1c6588;
+    address public constant PROTOFI_ROUTER = 0xF4C587a0972Ac2039BFF67Bc44574bB403eF5235;
+    address public constant MASTER_CHEF    = 0xa71f52aee8311c22b6329EF7715A5B8aBF1c6588;
 
     /**
      * @dev Routes we take to swap tokens
-     * {screamToWftmRoute} - Route we take to get from {SCREAM} into {WFTM}.
+     * {protoToWftmRoute} - Route we take to get from {PROTO} into {WFTM}.
      * {wftmToWantRoute} - Route we take to get from {WFTM} into {want}.
      */
-    address[] public screamToWftmRoute;
+    address[] public protoToWftmRoute;
     address[] public wftmToWantRoute;
+    address[] public wftmToLp0Route;
+    address[] public wftmToLp1Route;
 
     /**
     * @dev Protofi variables
@@ -49,11 +55,8 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
 
     /**
      * @dev Strategy variables
-
-    /**
-     * {SPIRIT_ROUTER} - SpiritSwap router
-     */
-    address public constant SPIRIT_ROUTER = 0x16327E3FbDaCA3bcF7E38F5Af2599D2DDc33aE52;
+    */
+    uint public allowedSlippage;
 
     /**
      * @dev Initializes the strategy. Sets parameters, saves routes, and gives allowances.
@@ -69,6 +72,14 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
         __ReaperBaseStrategy_init(_vault, _feeRemitters, _strategists);
         want = _want;
         poolId = _poolId;
+        protoToWftmRoute = [PROTO, WFTM];
+        allowedSlippage = 9500;
+
+        lpToken0 = IUniswapV2Pair(want).token0();
+        lpToken1 = IUniswapV2Pair(want).token1();
+
+        wftmToLp0Route = [WFTM, lpToken0];
+        wftmToLp1Route = [WFTM, lpToken1];
 
         _giveAllowances();
     }
@@ -82,7 +93,7 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
         uint256 wantBalance = IERC20Upgradeable(want).balanceOf(address(this));
 
         if (wantBalance < _withdrawAmount) {
-            IMasterChef(masterChef).withdraw(poolId, _withdrawAmount - wantBalance);
+            IMasterChef(MASTER_CHEF).withdraw(poolId, _withdrawAmount - wantBalance);
             wantBalance = IERC20Upgradeable(want).balanceOf(address(this));
         }
 
@@ -103,7 +114,7 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
         // if (rewards == 0) {
         //     return (0, 0);
         // }
-        // profit = IUniswapRouter(SPOOKY_ROUTER).getAmountsOut(rewards, screamToWftmRoute)[1];
+        // profit = IUniswapRouter(SPOOKY_ROUTER).getAmountsOut(rewards, protoToWftmRoute)[1];
         // uint256 wftmFee = (profit * totalFee) / PERCENT_DIVISOR;
         // callFeeToUser = (wftmFee * callFee) / PERCENT_DIVISOR;
         // profit -= wftmFee;
@@ -120,7 +131,6 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
         _onlyStrategistOrOwner();
         _claimRewards();
         _swapRewardsToWftm();
-        _swapToWant();
     }
 
     /**
@@ -156,11 +166,11 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
     /**
      * @dev Function that puts the funds to work.
      * It gets called whenever someone supplied in the strategy's vault contract.
-     * It supplies {want} Scream to farm {SCREAM}
+     * It supplies {want} Scream to farm {PROTO}
      */
     function deposit() public whenNotPaused {
         uint wantBalance = IERC20Upgradeable(want).balanceOf(address(this));
-        IMasterChef(masterChef).deposit(poolId, wantBalance);
+        IMasterChef(MASTER_CHEF).deposit(poolId, wantBalance);
     }
 
     /**
@@ -172,7 +182,7 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
     }
 
     function balanceOfPool() public view returns (uint256) {
-        (uint256 _amount, ) = IMasterChef(masterChef).userInfo(
+        (uint256 _amount, ) = IMasterChef(MASTER_CHEF).userInfo(
             poolId,
             address(this)
         );
@@ -189,8 +199,8 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
     /**
      * @dev Core function of the strat, in charge of collecting and re-investing rewards.
      * @notice Assumes the deposit will take care of the TVL rebalancing.
-     * 1. Claims {SCREAM} from the comptroller.
-     * 2. Swaps {SCREAM} to {WFTM}.
+     * 1. Claims {PROTO} from the comptroller.
+     * 2. Swaps {PROTO} to {WFTM}.
      * 3. Claims fees for the harvest caller and treasury.
      * 4. Swaps the {WFTM} token for {want}
      * 5. Deposits.
@@ -199,7 +209,7 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
         _claimRewards();
         _swapRewardsToWftm();
         _chargeFees();
-        _swapToWant();
+        _addLiquidity();
         deposit();
     }
 
@@ -208,23 +218,23 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
      * Get rewards from markets entered
      */
     function _claimRewards() internal {
+        IMasterChef(MASTER_CHEF).deposit(poolId, 0);
     }
 
     /**
      * @dev Core harvest function.
-     * Swaps {SCREAM} to {WFTM}
+     * Swaps {PROTO} to {WFTM}
      */
     function _swapRewardsToWftm() internal {
-        // uint256 screamBalance = IERC20Upgradeable(SCREAM).balanceOf(address(this));
-        // if (screamBalance >= minScreamToSell) {
-        //     IUniswapRouter(SPOOKY_ROUTER).swapExactTokensForTokensSupportingFeeOnTransferTokens(
-        //         screamBalance,
-        //         0,
-        //         screamToWftmRoute,
-        //         address(this),
-        //         block.timestamp + 600
-        //     );
-        // }
+        uint256 protoBalance = IERC20Upgradeable(PROTO).balanceOf(address(this));
+        uint minOutput = protoBalance * allowedSlippage / PERCENT_DIVISOR;
+        IUniswapRouter(PROTOFI_ROUTER).swapExactTokensForTokensSupportingFeeOnTransferTokens(
+            protoBalance,
+            0,
+            protoToWftmRoute,
+            address(this),
+            block.timestamp
+        );
     }
 
     /**
@@ -245,52 +255,85 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
         }
     }
 
-    /**
-     * @dev Core harvest function.
-     * Swaps {WFTM} for {want}
-     */
-    function _swapToWant() internal {
-        if (want == WFTM) {
-            return;
+    /** @dev Converts WFTM to both sides of the LP token and builds the liquidity pair */
+    function _addLiquidity() internal {
+        uint256 wrappedHalf = IERC20Upgradeable(WFTM).balanceOf(address(this)) / 2;
+
+        if (lpToken0 != WFTM) {
+            IUniswapRouter(PROTOFI_ROUTER)
+                .swapExactTokensForTokensSupportingFeeOnTransferTokens(
+                    wrappedHalf,
+                    0,
+                    wftmToLp0Route,
+                    address(this),
+                    block.timestamp
+                );
         }
-        
-        uint256 wftmBalance = IERC20Upgradeable(WFTM).balanceOf(address(this));
-        if (wftmBalance != 0) {
-            IUniswapRouter(SPIRIT_ROUTER).swapExactTokensForTokensSupportingFeeOnTransferTokens(
-                wftmBalance,
-                0,
-                wftmToWantRoute,
-                address(this),
-                block.timestamp + 600
-            );
+        if (lpToken1 != WFTM) {
+            IUniswapRouter(PROTOFI_ROUTER)
+                .swapExactTokensForTokensSupportingFeeOnTransferTokens(
+                    wrappedHalf,
+                    0,
+                    wftmToLp1Route,
+                    address(this),
+                    block.timestamp
+                );
         }
+
+        uint256 lp0Bal = IERC20Upgradeable(lpToken0).balanceOf(address(this));
+        uint256 lp1Bal = IERC20Upgradeable(lpToken1).balanceOf(address(this));
+
+        IUniswapRouter(PROTOFI_ROUTER).addLiquidity(
+            lpToken0,
+            lpToken1,
+            lp0Bal,
+            lp1Bal,
+            1,
+            1,
+            address(this),
+            block.timestamp
+        );
     }
 
     /**
      * @dev Gives the necessary allowances to mint cWant, swap rewards etc
      */
     function _giveAllowances() internal {
-        uint wantAllowance = type(uint).max - IERC20Upgradeable(want).allowance(address(this), masterChef);
+        uint wantAllowance = type(uint).max - IERC20Upgradeable(want).allowance(address(this), MASTER_CHEF);
         IERC20Upgradeable(want).safeIncreaseAllowance(
-            masterChef,
+            MASTER_CHEF,
             wantAllowance
         );
-        // IERC20Upgradeable(WFTM).safeIncreaseAllowance(
-        //     SPIRIT_ROUTER,
-        //     type(uint256).max - IERC20Upgradeable(WFTM).allowance(address(this), SPIRIT_ROUTER)
-        // );
-        // IERC20Upgradeable(SCREAM).safeIncreaseAllowance(
-        //     SPOOKY_ROUTER,
-        //     type(uint256).max - IERC20Upgradeable(SCREAM).allowance(address(this), SPOOKY_ROUTER)
-        // );
+        uint protoAllowance = type(uint).max - IERC20Upgradeable(PROTO).allowance(address(this), PROTOFI_ROUTER);
+        IERC20Upgradeable(PROTO).safeIncreaseAllowance(
+            PROTOFI_ROUTER,
+            protoAllowance
+        );
+        uint wftmAllowance = type(uint).max - IERC20Upgradeable(WFTM).allowance(address(this), PROTOFI_ROUTER);
+        IERC20Upgradeable(WFTM).safeIncreaseAllowance(
+            PROTOFI_ROUTER,
+            wftmAllowance
+        );
+        uint lp0Allowance = type(uint).max - IERC20Upgradeable(lpToken0).allowance(address(this), PROTOFI_ROUTER);
+        IERC20Upgradeable(lpToken0).safeIncreaseAllowance(
+            PROTOFI_ROUTER,
+            lp0Allowance
+        );
+        uint lp1Allowance = type(uint).max - IERC20Upgradeable(lpToken1).allowance(address(this), PROTOFI_ROUTER);
+        IERC20Upgradeable(lpToken1).safeIncreaseAllowance(
+            PROTOFI_ROUTER,
+            lp1Allowance
+        );
     }
 
     /**
      * @dev Removes all allowance that were given
      */
     function _removeAllowances() internal {
-        // IERC20Upgradeable(want).safeDecreaseAllowance(address(cWant), IERC20Upgradeable(want).allowance(address(this), address(cWant)));
-        // IERC20Upgradeable(WFTM).safeDecreaseAllowance(SPIRIT_ROUTER, IERC20Upgradeable(WFTM).allowance(address(this), SPIRIT_ROUTER));
-        // IERC20Upgradeable(SCREAM).safeDecreaseAllowance(SPOOKY_ROUTER, IERC20Upgradeable(SCREAM).allowance(address(this), SPOOKY_ROUTER));
+        IERC20Upgradeable(want).safeDecreaseAllowance(MASTER_CHEF, IERC20Upgradeable(want).allowance(address(this), MASTER_CHEF));
+        IERC20Upgradeable(PROTO).safeDecreaseAllowance(PROTOFI_ROUTER, IERC20Upgradeable(PROTO).allowance(address(this), PROTOFI_ROUTER));
+        IERC20Upgradeable(WFTM).safeDecreaseAllowance(PROTOFI_ROUTER, IERC20Upgradeable(WFTM).allowance(address(this), PROTOFI_ROUTER));
+        IERC20Upgradeable(lpToken0).safeDecreaseAllowance(PROTOFI_ROUTER, IERC20Upgradeable(lpToken0).allowance(address(this), PROTOFI_ROUTER));
+        IERC20Upgradeable(lpToken1).safeDecreaseAllowance(PROTOFI_ROUTER, IERC20Upgradeable(lpToken1).allowance(address(this), PROTOFI_ROUTER));
     }
 }

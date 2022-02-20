@@ -3,14 +3,14 @@
   "proxies": [
     {
       "address": "0x5081a39b8A5f0E35a8D959395a630b68B74Dd30f",
-      "txHash": "0xa9c2a733efffb182de36a15aa4e0938bad929088b4f28ccf09d0a32168a38b0b",
+      "txHash": "0x641182afc5354bbd3a031acff0d5a73b3058d54fa6d943fe604ac5b0960a88ab",
       "kind": "uups"
     }
   ],
   "impls": {
-    "6f391fa342b399873175249b5a176905ff9cf34407cc68d657a7bedb9e386055": {
+    "9c173ea920a23d21dcd6a966e75ca776ed955391f06de6224a93fc3d13dac846": {
       "address": "0x922D6956C99E12DFeB3224DEA977D0939758A1Fe",
-      "txHash": "0x49e4eb7846ccdd89dd7f7a374b8231a11382f1cf3c401afe3029b199ae07b758",
+      "txHash": "0xf6fadcf84915650294f4985d964749124e1edb16e76567095a7a466eb5396923",
       "layout": {
         "storage": [
           {
@@ -88,7 +88,7 @@
           {
             "contract": "ReaperBaseStrategy",
             "label": "harvestLog",
-            "type": "t_array(t_struct(Harvest)6238_storage)dyn_storage",
+            "type": "t_array(t_struct(Harvest)6575_storage)dyn_storage",
             "src": "contracts\\abstract\\ReaperBaseStrategy.sol:27"
           },
           {
@@ -161,25 +161,55 @@
             "contract": "ReaperAutoCompoundProtofiFarmer",
             "label": "want",
             "type": "t_address",
-            "src": "contracts\\ReaperAutoCompoundProtofiFarmer.sol:27"
+            "src": "contracts\\ReaperAutoCompoundProtofiFarmer.sol:29"
           },
           {
             "contract": "ReaperAutoCompoundProtofiFarmer",
-            "label": "screamToWftmRoute",
+            "label": "lpToken0",
+            "type": "t_address",
+            "src": "contracts\\ReaperAutoCompoundProtofiFarmer.sol:30"
+          },
+          {
+            "contract": "ReaperAutoCompoundProtofiFarmer",
+            "label": "lpToken1",
+            "type": "t_address",
+            "src": "contracts\\ReaperAutoCompoundProtofiFarmer.sol:31"
+          },
+          {
+            "contract": "ReaperAutoCompoundProtofiFarmer",
+            "label": "protoToWftmRoute",
             "type": "t_array(t_address)dyn_storage",
-            "src": "contracts\\ReaperAutoCompoundProtofiFarmer.sol:41"
+            "src": "contracts\\ReaperAutoCompoundProtofiFarmer.sol:45"
           },
           {
             "contract": "ReaperAutoCompoundProtofiFarmer",
             "label": "wftmToWantRoute",
             "type": "t_array(t_address)dyn_storage",
-            "src": "contracts\\ReaperAutoCompoundProtofiFarmer.sol:42"
+            "src": "contracts\\ReaperAutoCompoundProtofiFarmer.sol:46"
+          },
+          {
+            "contract": "ReaperAutoCompoundProtofiFarmer",
+            "label": "wftmToLp0Route",
+            "type": "t_array(t_address)dyn_storage",
+            "src": "contracts\\ReaperAutoCompoundProtofiFarmer.sol:47"
+          },
+          {
+            "contract": "ReaperAutoCompoundProtofiFarmer",
+            "label": "wftmToLp1Route",
+            "type": "t_array(t_address)dyn_storage",
+            "src": "contracts\\ReaperAutoCompoundProtofiFarmer.sol:48"
           },
           {
             "contract": "ReaperAutoCompoundProtofiFarmer",
             "label": "poolId",
             "type": "t_uint256",
-            "src": "contracts\\ReaperAutoCompoundProtofiFarmer.sol:48"
+            "src": "contracts\\ReaperAutoCompoundProtofiFarmer.sol:54"
+          },
+          {
+            "contract": "ReaperAutoCompoundProtofiFarmer",
+            "label": "allowedSlippage",
+            "type": "t_uint256",
+            "src": "contracts\\ReaperAutoCompoundProtofiFarmer.sol:59"
           }
         ],
         "types": {
@@ -192,10 +222,10 @@
           "t_uint256": {
             "label": "uint256"
           },
-          "t_array(t_struct(Harvest)6238_storage)dyn_storage": {
+          "t_array(t_struct(Harvest)6575_storage)dyn_storage": {
             "label": "struct ReaperBaseStrategy.Harvest[]"
           },
-          "t_struct(Harvest)6238_storage": {
+          "t_struct(Harvest)6575_storage": {
             "label": "struct ReaperBaseStrategy.Harvest",
             "members": [
               {

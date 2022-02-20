@@ -220,97 +220,14 @@ describe('Vaults', function () {
       expect(isSmallBalanceDifference).to.equal(true);
     });
 
-    xit('should trigger leveraging on withdraw when LTV is too low', async function () {
-      const startingLTV = toWantUnit('0.6');
-      await strategy.setTargetLtv(startingLTV);
-      const depositAmount = toWantUnit('100', true);
-
-      await vault.connect(self).deposit(depositAmount);
-      const ltvBefore = await strategy.calculateLTV();
-      console.log(`ltvBefore: ${ltvBefore}`);
-      const allowedLTVDrift = toWantUnit('0.01');
-      expect(ltvBefore).to.be.closeTo(startingLTV, allowedLTVDrift);
-      const newLTV = toWantUnit('0.7');
-      await strategy.setTargetLtv(newLTV);
-      const smallWithdrawAmount = toWantUnit('1', true);
-      const userBalance = await want.balanceOf(selfAddress);
-      await vault.connect(self).withdraw(smallWithdrawAmount);
-      const userBalanceAfterWithdraw = await want.balanceOf(selfAddress);
-      const ltvAfter = await strategy.calculateLTV();
-      console.log(`ltvAfter: ${ltvAfter}`);
-      expect(ltvAfter).to.be.closeTo(newLTV, allowedLTVDrift);
-
-      const securityFee = 10;
-      const percentDivisor = 10000;
-      const withdrawFee = smallWithdrawAmount.mul(securityFee).div(percentDivisor);
-      const expectedBalance = userBalance.add(smallWithdrawAmount).sub(withdrawFee);
-
-      expect(userBalanceAfterWithdraw).to.be.closeTo(expectedBalance, toWantUnit('0.0000001', true));
-    });
-
-    xit('should trigger deleveraging on withdraw when LTV is too high', async function () {
-      const startingLTV = toWantUnit('0.7');
-      await strategy.setTargetLtv(startingLTV);
-      const depositAmount = toWantUnit('100', true);
-
-      await vault.connect(self).deposit(depositAmount);
-      const ltvBefore = await strategy.calculateLTV();
-      console.log(`ltvBefore: ${ltvBefore}`);
-      const allowedLTVDrift = toWantUnit('0.01');
-      expect(ltvBefore).to.be.closeTo(startingLTV, allowedLTVDrift);
-      const newLTV = toWantUnit('0.6');
-      await strategy.setTargetLtv(newLTV);
-      const smallWithdrawAmount = toWantUnit('1', true);
-      const userBalance = await want.balanceOf(selfAddress);
-      await vault.connect(self).withdraw(smallWithdrawAmount);
-      const userBalanceAfterWithdraw = await want.balanceOf(selfAddress);
-      const ltvAfter = await strategy.calculateLTV();
-      console.log(`ltvAfter: ${ltvAfter}`);
-      expect(ltvAfter).to.be.closeTo(newLTV, allowedLTVDrift);
-
-      const securityFee = 10;
-      const percentDivisor = 10000;
-      const withdrawFee = smallWithdrawAmount.mul(securityFee).div(percentDivisor);
-      const expectedBalance = userBalance.add(smallWithdrawAmount).sub(withdrawFee);
-
-      expect(userBalanceAfterWithdraw).to.be.closeTo(expectedBalance, toWantUnit('0.0000001', true));
-    });
-
-    xit('should not change leverage on withdraw when still in the allowed LTV', async function () {
-      const startingLTV = toWantUnit('0.7');
-      await strategy.setTargetLtv(startingLTV);
-      const depositAmount = toWantUnit('100', true);
-
-      await vault.connect(self).deposit(depositAmount);
-      const ltvBefore = await strategy.calculateLTV();
-      console.log(`ltvBefore: ${ltvBefore}`);
-      const allowedLTVDrift = toWantUnit('0.01');
-      expect(ltvBefore).to.be.closeTo(startingLTV, allowedLTVDrift);
-
-      const userBalance = await want.balanceOf(selfAddress);
-      const smallWithdrawAmount = toWantUnit('0.005', true);
-      await vault.connect(self).withdraw(smallWithdrawAmount);
-      const userBalanceAfterWithdraw = await want.balanceOf(selfAddress);
-      const ltvAfter = await strategy.calculateLTV();
-      console.log(`ltvAfter: ${ltvAfter}`);
-      expect(ltvAfter).to.be.closeTo(startingLTV, allowedLTVDrift);
-
-      const securityFee = 10;
-      const percentDivisor = 10000;
-      const withdrawFee = smallWithdrawAmount.mul(securityFee).div(percentDivisor);
-      const expectedBalance = userBalance.add(smallWithdrawAmount).sub(withdrawFee);
-
-      expect(userBalanceAfterWithdraw).to.be.closeTo(expectedBalance, toWantUnit('0.0000001', true));
-    });
-
     xit('should allow small withdrawal', async function () {
       const userBalance = await want.balanceOf(selfAddress);
       console.log(`userBalance: ${userBalance}`);
-      const depositAmount = toWantUnit('1', true);
+      const depositAmount = toWantUnit('0.0000001');
       await vault.connect(self).deposit(depositAmount);
       console.log(`await want.balanceOf(selfAddress): ${await want.balanceOf(selfAddress)}`);
 
-      const whaleDepositAmount = toWantUnit('10000', true);
+      const whaleDepositAmount = toWantUnit('0.001');
       await vault.connect(wantWhale).deposit(whaleDepositAmount);
 
       await vault.connect(self).withdrawAll();
@@ -318,10 +235,12 @@ describe('Vaults', function () {
       console.log(`newUserVaultBalance: ${newUserVaultBalance}`);
       const userBalanceAfterWithdraw = await want.balanceOf(selfAddress);
       const securityFee = 10;
+      const depositFee = 10;
       const percentDivisor = 10000;
       const withdrawFee = (depositAmount * securityFee) / percentDivisor;
-      const expectedBalance = userBalance.sub(withdrawFee);
-      const smallDifference = depositAmount * 0.00001;
+      const depositFeePayed = (depositAmount * depositFee) / percentDivisor;
+      const expectedBalance = userBalance.sub(withdrawFee).sub(depositFeePayed);
+      const smallDifference = depositAmount * 0.01;
       console.log(`expectedBalance.sub(userBalanceAfterWithdraw): ${expectedBalance.sub(userBalanceAfterWithdraw)}`);
       console.log(`smallDifference: ${smallDifference}`);
       const isSmallBalanceDifference = expectedBalance.sub(userBalanceAfterWithdraw) < smallDifference;
@@ -331,25 +250,29 @@ describe('Vaults', function () {
     xit('should handle small deposit + withdraw', async function () {
       const userBalance = await want.balanceOf(selfAddress);
       console.log(`userBalance: ${userBalance}`);
-      // "0.0000000000001" for 1e18
-      const depositAmount = toWantUnit('0.001', true);
+      const depositAmount = toWantUnit('0.0000000000001');
 
       await vault.connect(self).deposit(depositAmount);
       console.log(`await want.balanceOf(selfAddress): ${await want.balanceOf(selfAddress)}`);
 
-      await vault.connect(self).withdraw(depositAmount);
+      const depositFee = 10;
+      const percentDivisor = 10000;
+      const depositFeePayed = (depositAmount * depositFee) / percentDivisor;
+
+      await vault.connect(self).withdraw(depositAmount.sub(depositFeePayed));
       console.log(`await want.balanceOf(selfAddress): ${await want.balanceOf(selfAddress)}`);
       const newUserVaultBalance = await vault.balanceOf(selfAddress);
       console.log(`newUserVaultBalance: ${newUserVaultBalance}`);
       const userBalanceAfterWithdraw = await want.balanceOf(selfAddress);
+
       const securityFee = 10;
-      const percentDivisor = 10000;
       const withdrawFee = (depositAmount * securityFee) / percentDivisor;
-      const expectedBalance = userBalance.sub(withdrawFee);
-      const isSmallBalanceDifference = expectedBalance.sub(userBalanceAfterWithdraw) < 100;
+
+      const expectedBalance = userBalance.sub(withdrawFee).sub(depositFeePayed);
+      const isSmallBalanceDifference = expectedBalance.sub(userBalanceAfterWithdraw) < 200;
       console.log(`expectedBalance: ${expectedBalance}`);
       console.log(`userBalanceAfterWithdraw: ${userBalanceAfterWithdraw}`);
-      // expect(isSmallBalanceDifference).to.equal(true);
+      expect(isSmallBalanceDifference).to.equal(true);
     });
 
     xit('should be able to harvest', async function () {
@@ -359,25 +282,27 @@ describe('Vaults', function () {
       await strategy.connect(self).harvest();
     });
 
-    xit('should provide yield', async function () {
-      const timeToSkip = 3600;
+    it('should provide yield', async function () {
+      const timeToSkip = 36000000;
       const initialUserBalance = await want.balanceOf(selfAddress);
       console.log(initialUserBalance);
-      const depositAmount = initialUserBalance.div(10);
+      const depositAmount = initialUserBalance.div(1);
 
       await vault.connect(self).deposit(depositAmount);
       const initialVaultBalance = await vault.balance();
 
       await strategy.updateHarvestLogCadence(timeToSkip / 2);
 
-      const numHarvests = 2;
+      const numHarvests = 10;
       for (let i = 0; i < numHarvests; i++) {
         await moveTimeForward(timeToSkip);
-        await vault.connect(self).deposit(depositAmount);
+        //await vault.connect(self).deposit(depositAmount);
         await strategy.harvest();
       }
 
       const finalVaultBalance = await vault.balance();
+      console.log(`finalVaultBalance: ${finalVaultBalance}`);
+      console.log(`initialVaultBalance: ${initialVaultBalance}`);
       expect(finalVaultBalance).to.be.gt(initialVaultBalance);
 
       const averageAPR = await strategy.averageAPRAcrossLastNHarvests(numHarvests);
