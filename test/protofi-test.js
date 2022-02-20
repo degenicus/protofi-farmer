@@ -84,7 +84,7 @@ describe('Vaults', function () {
     console.log('treasury');
     want = await Want.attach(wantAddress);
     console.log('want attached');
-    const depositFee = 25;
+    const depositFee = 10;
     vault = await Vault.deploy(
       wantAddress,
       'Protofi FTM-USDC Vault',
@@ -123,7 +123,7 @@ describe('Vaults', function () {
   });
 
   describe('Deploying the vault and strategy', function () {
-    it('should initiate vault with a 0 balance', async function () {
+    xit('should initiate vault with a 0 balance', async function () {
       console.log(1);
       const totalBalance = await vault.balance();
       console.log(2);
@@ -139,7 +139,7 @@ describe('Vaults', function () {
     });
   });
   describe('Vault Tests', function () {
-    it('should allow deposits and account for them correctly', async function () {
+    xit('should allow deposits and account for them correctly', async function () {
       const userBalance = await want.balanceOf(selfAddress);
       console.log(`userBalance: ${userBalance}`);
       const vaultBalance = await vault.balance();
@@ -151,7 +151,7 @@ describe('Vaults', function () {
       console.log(`newVaultBalance: ${newVaultBalance}`);
       const newUserBalance = await want.balanceOf(selfAddress);
       console.log(`newUserBalance: ${newUserBalance}`);
-      const depositFee = 25;
+      const depositFee = 10;
       const BASIS_POINTS = 10000;
       const depositLoss = (depositAmount * depositFee) / BASIS_POINTS;
       console.log(depositLoss);
@@ -159,50 +159,23 @@ describe('Vaults', function () {
       expect(depositAmount).to.be.closeTo(newVaultBalance.sub(depositLoss), allowedInaccuracy);
     });
 
-    xit('should trigger deleveraging on deposit when LTV is too high', async function () {
-      const depositAmount = toWantUnit('100', true);
-      await vault.connect(self).deposit(depositAmount);
-      const ltvBefore = await strategy.calculateLTV();
-      console.log(`ltvBefore: ${ltvBefore}`);
-      const allowedLTVDrift = toWantUnit('0.01');
-      expect(ltvBefore).to.be.closeTo(toWantUnit('0.73'), allowedLTVDrift);
-      const newLTV = toWantUnit('0.6');
-      await strategy.setTargetLtv(newLTV);
-      const smallDepositAmount = toWantUnit('1', true);
-      await vault.connect(self).deposit(smallDepositAmount);
-      const ltvAfter = await strategy.calculateLTV();
-      console.log(`ltvAfter: ${ltvAfter}`);
-      expect(ltvAfter).to.be.closeTo(newLTV, allowedLTVDrift);
-    });
-
-    xit('should not change leverage when LTV is within the allowed drift on deposit', async function () {
-      const depositAmount = toWantUnit('1', true);
-      const ltv = toWantUnit('0.73');
-      await vault.connect(self).deposit(depositAmount);
-      const ltvBefore = await strategy.calculateLTV();
-      console.log(`ltvBefore: ${ltvBefore}`);
-      const allowedLTVDrift = toWantUnit('0.01');
-      expect(ltvBefore).to.be.closeTo(ltv, allowedLTVDrift);
-      const smallDepositAmount = toWantUnit('0.005', true);
-      await vault.connect(self).deposit(smallDepositAmount);
-      const ltvAfter = await strategy.calculateLTV();
-      console.log(`ltvAfter: ${ltvAfter}`);
-      expect(ltvAfter).to.be.closeTo(ltv, allowedLTVDrift);
-    });
-
     xit('should mint user their pool share', async function () {
       console.log('---------------------------------------------');
       const userBalance = await want.balanceOf(selfAddress);
       console.log(userBalance.toString());
-      const selfDepositAmount = toWantUnit('0.005', true);
+      const selfDepositAmount = toWantUnit('0.0007');
+      console.log(selfDepositAmount);
       await vault.connect(self).deposit(selfDepositAmount);
       console.log((await vault.balance()).toString());
 
-      const whaleDepositAmount = toWantUnit('100', true);
+      const whaleBalance = await want.connect(wantWhale).balanceOf(selfAddress);
+      console.log(`whaleBalance: ${whaleBalance.toString()}`);
+      const whaleDepositAmount = toWantUnit('0.001');
+      console.log(`whaleDepositAmount: ${whaleDepositAmount}`);
       await vault.connect(wantWhale).deposit(whaleDepositAmount);
       const selfWantBalance = await vault.balanceOf(selfAddress);
       console.log(selfWantBalance.toString());
-      const ownerDepositAmount = toWantUnit('1', true);
+      const ownerDepositAmount = toWantUnit('0.0001');
       await want.connect(self).transfer(ownerAddress, ownerDepositAmount);
       const ownerBalance = await want.balanceOf(ownerAddress);
 
@@ -216,15 +189,17 @@ describe('Vaults', function () {
       console.log(`ownerWantBalance: ${ownerWantBalance}`);
       const ownerVaultWantBalanceAfterWithdraw = await vault.balanceOf(ownerAddress);
       console.log(`ownerVaultWantBalanceAfterWithdraw: ${ownerVaultWantBalanceAfterWithdraw}`);
-      const allowedImprecision = toWantUnit('0.01', true);
-      expect(ownerWantBalance).to.be.closeTo(ownerDepositAmount, allowedImprecision);
-      expect(selfWantBalance).to.equal(selfDepositAmount);
+      const allowedImprecision = toWantUnit('0.0001');
+      const ownerDepositFee = (ownerDepositAmount * 10) / 10000;
+      expect(ownerWantBalance).to.be.closeTo(ownerDepositAmount.sub(ownerDepositFee), allowedImprecision);
+      const selfDepositFee = (selfDepositAmount * 10) / 10000;
+      expect(selfWantBalance).to.equal(selfDepositAmount - selfDepositFee);
     });
 
     xit('should allow withdrawals', async function () {
       const userBalance = await want.balanceOf(selfAddress);
       console.log(`userBalance: ${userBalance}`);
-      const depositAmount = toWantUnit('1', true);
+      const depositAmount = toWantUnit('0.0007');
       await vault.connect(self).deposit(depositAmount);
       console.log(`await want.balanceOf(selfAddress): ${await want.balanceOf(selfAddress)}`);
 
@@ -233,10 +208,12 @@ describe('Vaults', function () {
       console.log(`newUserVaultBalance: ${newUserVaultBalance}`);
       const userBalanceAfterWithdraw = await want.balanceOf(selfAddress);
       const securityFee = 10;
+      const depositFee = 10;
       const percentDivisor = 10000;
       const withdrawFee = (depositAmount * securityFee) / percentDivisor;
-      const expectedBalance = userBalance.sub(withdrawFee);
-      const smallDifference = expectedBalance * 0.0000001;
+      const depositFeePayed = (depositAmount * depositFee) / percentDivisor;
+      const expectedBalance = userBalance.sub(withdrawFee).sub(depositFeePayed);
+      const smallDifference = expectedBalance * 0.002;
       console.log(`expectedBalance.sub(userBalanceAfterWithdraw): ${expectedBalance.sub(userBalanceAfterWithdraw)}`);
       console.log(`smallDifference: ${smallDifference}`);
       const isSmallBalanceDifference = expectedBalance.sub(userBalanceAfterWithdraw) < smallDifference;

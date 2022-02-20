@@ -79,24 +79,19 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
      * The available {want} minus fees is returned to the vault.
      */
     function withdraw(uint256 _withdrawAmount) external {
-        require(msg.sender == vault);
+        uint256 wantBalance = IERC20Upgradeable(want).balanceOf(address(this));
 
-        // uint256 _ltv = _calculateLTVAfterWithdraw(_withdrawAmount);
+        if (wantBalance < _withdrawAmount) {
+            IMasterChef(masterChef).withdraw(poolId, _withdrawAmount - wantBalance);
+            wantBalance = IERC20Upgradeable(want).balanceOf(address(this));
+        }
 
-        // if (_shouldLeverage(_ltv)) {
-        //     // Strategy is underleveraged so can withdraw underlying directly
-        //     _withdrawUnderlyingToVault(_withdrawAmount, true);
-        //     _leverMax();
-        // } else if (_shouldDeleverage(_ltv)) {
-        //     _deleverage(_withdrawAmount);
+        if (wantBalance > _withdrawAmount) {
+            wantBalance = _withdrawAmount;
+        }
 
-        //     // Strategy has deleveraged to the point where it can withdraw underlying
-        //     _withdrawUnderlyingToVault(_withdrawAmount, true);
-        // } else {
-        //     // LTV is in the acceptable range so the underlying can be withdrawn directly
-        //     _withdrawUnderlyingToVault(_withdrawAmount, true);
-        // }
-        // updateBalance();
+        uint withdrawFee = _withdrawAmount * securityFee / PERCENT_DIVISOR;
+        IERC20Upgradeable(want).safeTransfer(vault, wantBalance - withdrawFee);
     }
 
     /**
@@ -164,8 +159,8 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
      * It supplies {want} Scream to farm {SCREAM}
      */
     function deposit() public whenNotPaused {
-        uint wantBal = IERC20Upgradeable(want).balanceOf(address(this));
-        IMasterChef(masterChef).deposit(poolId, wantBal);
+        uint wantBalance = IERC20Upgradeable(want).balanceOf(address(this));
+        IMasterChef(masterChef).deposit(poolId, wantBalance);
     }
 
     /**
@@ -173,18 +168,14 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
      * which is the balance of want + the total amount supplied to Scream.
      */
     function balanceOf() public view override returns (uint256) {
-        console.log("balanceOf()");
-        console.log(balanceOfWant() + balanceOfPool());
         return balanceOfWant() + balanceOfPool();
     }
 
     function balanceOfPool() public view returns (uint256) {
-        console.log("balanceOfPool()");
         (uint256 _amount, ) = IMasterChef(masterChef).userInfo(
             poolId,
             address(this)
         );
-        console.log(_amount);
         return _amount;
     }
 
