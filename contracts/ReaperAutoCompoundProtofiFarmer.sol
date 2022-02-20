@@ -2,7 +2,10 @@
 
 import './abstract/ReaperBaseStrategy.sol';
 import './interfaces/IUniswapRouter.sol';
+import './interfaces/IMasterChef.sol';
 import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
+
+import "hardhat/console.sol";
 
 pragma solidity 0.8.11;
 
@@ -28,6 +31,7 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
      * {SPOOKY_ROUTER} - SpookySwap router
      */
     address public constant SPOOKY_ROUTER = 0xF491e7B69E4244ad4002BC14e878a34207E38c29;
+    address public constant masterChef = 0xa71f52aee8311c22b6329EF7715A5B8aBF1c6588;
 
     /**
      * @dev Routes we take to swap tokens
@@ -36,6 +40,12 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
      */
     address[] public screamToWftmRoute;
     address[] public wftmToWantRoute;
+
+    /**
+    * @dev Protofi variables
+    * {poolId} - The MasterChef poolId to stake LP token
+    */
+    uint public poolId;
 
     /**
      * @dev Strategy variables
@@ -53,13 +63,14 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
         address _vault,
         address[] memory _feeRemitters,
         address[] memory _strategists,
-        address _want
+        address _want,
+        uint _poolId
     ) public initializer {
         __ReaperBaseStrategy_init(_vault, _feeRemitters, _strategists);
         want = _want;
+        poolId = _poolId;
 
-
-        //_giveAllowances();
+        _giveAllowances();
     }
 
     /**
@@ -153,7 +164,8 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
      * It supplies {want} Scream to farm {SCREAM}
      */
     function deposit() public whenNotPaused {
-
+        uint wantBal = IERC20Upgradeable(want).balanceOf(address(this));
+        IMasterChef(masterChef).deposit(poolId, wantBal);
     }
 
     /**
@@ -161,11 +173,19 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
      * which is the balance of want + the total amount supplied to Scream.
      */
     function balanceOf() public view override returns (uint256) {
+        console.log("balanceOf()");
+        console.log(balanceOfWant() + balanceOfPool());
         return balanceOfWant() + balanceOfPool();
     }
 
     function balanceOfPool() public view returns (uint256) {
-        return 0;
+        console.log("balanceOfPool()");
+        (uint256 _amount, ) = IMasterChef(masterChef).userInfo(
+            poolId,
+            address(this)
+        );
+        console.log(_amount);
+        return _amount;
     }
 
     /**
@@ -259,10 +279,11 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
      * @dev Gives the necessary allowances to mint cWant, swap rewards etc
      */
     function _giveAllowances() internal {
-        // IERC20Upgradeable(want).safeIncreaseAllowance(
-        //     address(cWant),
-        //     type(uint256).max - IERC20Upgradeable(want).allowance(address(this), address(cWant))
-        // );
+        uint wantAllowance = type(uint).max - IERC20Upgradeable(want).allowance(address(this), masterChef);
+        IERC20Upgradeable(want).safeIncreaseAllowance(
+            masterChef,
+            wantAllowance
+        );
         // IERC20Upgradeable(WFTM).safeIncreaseAllowance(
         //     SPIRIT_ROUTER,
         //     type(uint256).max - IERC20Upgradeable(WFTM).allowance(address(this), SPIRIT_ROUTER)

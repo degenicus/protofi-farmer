@@ -134,11 +134,8 @@ contract ReaperVaultv1_3 is ERC20, Ownable, ReentrancyGuard {
      *  and the balance deployed in other contracts as part of the strategy.
      */
     function balance() public view returns (uint256) {
-        console.log("balance()");
-        return token.balanceOf(address(this));
-        //return 1;
-        // return
-        //     token.balanceOf(address(this)).add(IStrategy(strategy).balanceOf());
+        return
+            token.balanceOf(address(this)).add(IStrategy(strategy).balanceOf());
     }
 
     /**
