@@ -3,14 +3,14 @@
   "proxies": [
     {
       "address": "0x5081a39b8A5f0E35a8D959395a630b68B74Dd30f",
-      "txHash": "0x46dee0fa6122bc584bb738fe46ea88a246ba5e24dd1d483519a03195db34b3b6",
+      "txHash": "0x05523d303b6f00dc2ffdedf1c314cd9a1d9866c547ec9f1191b7c3cdf346434b",
       "kind": "uups"
     }
   ],
   "impls": {
-    "be636a83c543ec26ddf6269f85638869d133be1660b18cf1dd05e4dbfd668d68": {
+    "bcc4ad3c6816a2ef53df0645d5d20e20cd027dd6048907cc53124700d5ba568d": {
       "address": "0x922D6956C99E12DFeB3224DEA977D0939758A1Fe",
-      "txHash": "0x786a3937a320d45c1643ee63b10a53fa02ad72eb96aecffd71483d173e8b6a2f",
+      "txHash": "0x8546d2fd5440704ad324833cac6b09db07138e39af4981fdc5c8ac3383e0c695",
       "layout": {
         "storage": [
           {
@@ -88,7 +88,7 @@
           {
             "contract": "ReaperBaseStrategy",
             "label": "harvestLog",
-            "type": "t_array(t_struct(Harvest)6693_storage)dyn_storage",
+            "type": "t_array(t_struct(Harvest)6679_storage)dyn_storage",
             "src": "contracts\\abstract\\ReaperBaseStrategy.sol:27"
           },
           {
@@ -207,15 +207,9 @@
           },
           {
             "contract": "ReaperAutoCompoundProtofiFarmer",
-            "label": "allowedSlippage",
-            "type": "t_uint256",
-            "src": "contracts\\ReaperAutoCompoundProtofiFarmer.sol:65"
-          },
-          {
-            "contract": "ReaperAutoCompoundProtofiFarmer",
             "label": "minProtoToSwap",
             "type": "t_uint256",
-            "src": "contracts\\ReaperAutoCompoundProtofiFarmer.sol:66"
+            "src": "contracts\\ReaperAutoCompoundProtofiFarmer.sol:63"
           }
         ],
         "types": {
@@ -228,10 +222,10 @@
           "t_uint256": {
             "label": "uint256"
           },
-          "t_array(t_struct(Harvest)6693_storage)dyn_storage": {
+          "t_array(t_struct(Harvest)6679_storage)dyn_storage": {
             "label": "struct ReaperBaseStrategy.Harvest[]"
           },
-          "t_struct(Harvest)6693_storage": {
+          "t_struct(Harvest)6679_storage": {
             "label": "struct ReaperBaseStrategy.Harvest",
             "members": [
               {

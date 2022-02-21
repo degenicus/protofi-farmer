@@ -58,11 +58,8 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
 
     /**
      * @dev Strategy variables
-     * {allowedSlippage} - Sets a limit on slippage when swapping in basis points, 
-     * ex 9500 = 95% so 5% slippage is allowed
      * {minProtoToSwap} - The minimum amount of reward token to swap (low or 0 amount could cause swap to revert and may not be worth the gas)
     */
-    uint public allowedSlippage;
     uint public minProtoToSwap;
 
     /**
@@ -87,7 +84,6 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
         wftmToLp0Route = [WFTM, lpToken0];
         wftmToLp1Route = [WFTM, lpToken1];
 
-        allowedSlippage = 9500;
         minProtoToSwap = 1000;
 
         _giveAllowances();
@@ -240,7 +236,6 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
     function _swapRewardsToWftm() internal {
         uint protoBalance = IERC20Upgradeable(PROTO).balanceOf(address(this));
         if (protoBalance >= minProtoToSwap) {
-            uint minOutput = protoBalance * allowedSlippage / PERCENT_DIVISOR;
             IUniswapRouter(PROTOFI_ROUTER).swapExactTokensForTokensSupportingFeeOnTransferTokens(
                 protoBalance,
                 0,
