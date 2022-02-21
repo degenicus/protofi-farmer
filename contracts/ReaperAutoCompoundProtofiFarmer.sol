@@ -6,8 +6,6 @@ import './interfaces/IMasterChef.sol';
 import './interfaces/IUniswapV2Pair.sol';
 import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
 
-import "hardhat/console.sol";
-
 pragma solidity 0.8.11;
 
 /**
