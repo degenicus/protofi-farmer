@@ -6,7 +6,7 @@ async function main() {
   const tokenName = 'Protofi FTM-USDC Vault';
   const tokenSymbol = 'rf-PF-FTM-USDC';
   const depositFee = 10;
-  const tvlCap = ethers.utils.parseEther('40000');
+  const tvlCap = ethers.utils.parseEther('0.002');
 
   const vault = await Vault.deploy(wantAddress, tokenName, tokenSymbol, depositFee, tvlCap);
 

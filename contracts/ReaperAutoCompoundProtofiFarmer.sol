@@ -178,7 +178,7 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
     /**
      * @dev Function that puts the funds to work.
      * It gets called whenever someone supplied in the strategy's vault contract.
-     * It supplies {want} Scream to farm {PROTO}
+     * It supplies {want} to farm {PROTO}
      */
     function deposit() public whenNotPaused {
         uint wantBalance = IERC20Upgradeable(want).balanceOf(address(this));
