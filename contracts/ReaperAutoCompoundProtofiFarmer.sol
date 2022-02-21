@@ -33,6 +33,7 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
     /**
      * @dev Third Party Contracts:
      * {PROTOFI_ROUTER} - The Protofi router
+     * {MASTER_CHEF} - The Protofi MasterChef contract, used for staking the LPs for rewards
      */
     address public constant PROTOFI_ROUTER = 0xF4C587a0972Ac2039BFF67Bc44574bB403eF5235;
     address public constant MASTER_CHEF    = 0xa71f52aee8311c22b6329EF7715A5B8aBF1c6588;
@@ -41,6 +42,8 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
      * @dev Routes we take to swap tokens
      * {protoToWftmRoute} - Route we take to get from {PROTO} into {WFTM}.
      * {wftmToWantRoute} - Route we take to get from {WFTM} into {want}.
+     * {wftmToLp0Route} - Route we take to get from {WFTM} into {lpToken0}.
+     * {wftmToLp1Route} - Route we take to get from {WFTM} into {lpToken1}.
      */
     address[] public protoToWftmRoute;
     address[] public wftmToWantRoute;
@@ -55,6 +58,9 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
 
     /**
      * @dev Strategy variables
+     * {allowedSlippage} - Sets a limit on slippage when swapping in basis points, 
+     * ex 9500 = 95% so 5% slippage is allowed
+     * {minProtoToSwap} - The minimum amount of reward token to swap (low or 0 amount could cause swap to revert and may not be worth the gas)
     */
     uint public allowedSlippage;
     uint public minProtoToSwap;
@@ -74,14 +80,14 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
         want = _want;
         poolId = _poolId;
         protoToWftmRoute = [PROTO, WFTM];
-        allowedSlippage = 9500;
-
+        
         lpToken0 = IUniswapV2Pair(want).token0();
         lpToken1 = IUniswapV2Pair(want).token1();
 
         wftmToLp0Route = [WFTM, lpToken0];
         wftmToLp1Route = [WFTM, lpToken1];
 
+        allowedSlippage = 9500;
         minProtoToSwap = 1000;
 
         _giveAllowances();
@@ -89,11 +95,11 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
 
     /**
      * @dev Withdraws funds and sents them back to the vault.
-     * It withdraws {want} from Scream
+     * It withdraws {want} from the ProtoFi MasterChef
      * The available {want} minus fees is returned to the vault.
      */
-    function withdraw(uint256 _withdrawAmount) external {
-        uint256 wantBalance = IERC20Upgradeable(want).balanceOf(address(this));
+    function withdraw(uint _withdrawAmount) external {
+        uint wantBalance = IERC20Upgradeable(want).balanceOf(address(this));
 
         if (wantBalance < _withdrawAmount) {
             IMasterChef(MASTER_CHEF).withdraw(poolId, _withdrawAmount - wantBalance);
@@ -112,7 +118,7 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
      * @dev Returns the approx amount of profit from harvesting.
      *      Profit is denominated in WFTM, and takes fees into account.
      */
-    function estimateHarvest() external view override returns (uint256 profit, uint256 callFeeToUser) {
+    function estimateHarvest() external view override returns (uint profit, uint callFeeToUser) {
         uint pendingProtons = IMasterChef(MASTER_CHEF).pendingProton(poolId, address(this));
         profit = IUniswapRouter(PROTOFI_ROUTER).getAmountsOut(pendingProtons, protoToWftmRoute)[1];
         uint wftmFee = (profit * totalFee) / PERCENT_DIVISOR;
@@ -131,7 +137,7 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
         _onlyStrategistOrOwner();
         _harvestCore();
         IMasterChef(MASTER_CHEF).withdraw(poolId, balanceOfPool());
-        uint256 wantBalance = IERC20Upgradeable(want).balanceOf(address(this));
+        uint wantBalance = IERC20Upgradeable(want).balanceOf(address(this));
         IERC20Upgradeable(want).safeTransfer(vault, wantBalance);
     }
 
@@ -141,7 +147,7 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
     function panic() external {
         _onlyStrategistOrOwner();
         IMasterChef(MASTER_CHEF).emergencyWithdraw(poolId);
-        uint256 wantBalance = IERC20Upgradeable(want).balanceOf(address(this));
+        uint wantBalance = IERC20Upgradeable(want).balanceOf(address(this));
         IERC20Upgradeable(want).safeTransfer(vault, wantBalance);
         pause();
     }
@@ -179,14 +185,17 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
 
     /**
      * @dev Calculates the total amount of {want} held by the strategy
-     * which is the balance of want + the total amount supplied to Scream.
+     * which is the balance of want + the total amount supplied to ProtoFi.
      */
-    function balanceOf() public view override returns (uint256) {
+    function balanceOf() public view override returns (uint) {
         return balanceOfWant() + balanceOfPool();
     }
 
-    function balanceOfPool() public view returns (uint256) {
-        (uint256 _amount, ) = IMasterChef(MASTER_CHEF).userInfo(
+    /**
+     * @dev Calculates the total amount of {want} held in the ProtoFi MasterChef
+     */
+    function balanceOfPool() public view returns (uint) {
+        (uint _amount, ) = IMasterChef(MASTER_CHEF).userInfo(
             poolId,
             address(this)
         );
@@ -196,14 +205,13 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
     /**
      * @dev Calculates the balance of want held directly by the strategy
      */
-    function balanceOfWant() public view returns (uint256) {
+    function balanceOfWant() public view returns (uint) {
         return IERC20Upgradeable(want).balanceOf(address(this));
     }
 
     /**
      * @dev Core function of the strat, in charge of collecting and re-investing rewards.
-     * @notice Assumes the deposit will take care of the TVL rebalancing.
-     * 1. Claims {PROTO} from the comptroller.
+     * 1. Claims {PROTO} from the MasterChef.
      * 2. Swaps {PROTO} to {WFTM}.
      * 3. Claims fees for the harvest caller and treasury.
      * 4. Swaps the {WFTM} token for {want}
@@ -219,7 +227,7 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
 
     /**
      * @dev Core harvest function.
-     * Get rewards from markets entered
+     * Get rewards from the MasterChef
      */
     function _claimRewards() internal {
         IMasterChef(MASTER_CHEF).deposit(poolId, 0);
@@ -248,11 +256,11 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
      * Charges fees based on the amount of WFTM gained from reward
      */
     function _chargeFees() internal {
-        uint256 wftmFee = (IERC20Upgradeable(WFTM).balanceOf(address(this)) * totalFee) / PERCENT_DIVISOR;
+        uint wftmFee = (IERC20Upgradeable(WFTM).balanceOf(address(this)) * totalFee) / PERCENT_DIVISOR;
         if (wftmFee != 0) {
-            uint256 callFeeToUser = (wftmFee * callFee) / PERCENT_DIVISOR;
-            uint256 treasuryFeeToVault = (wftmFee * treasuryFee) / PERCENT_DIVISOR;
-            uint256 feeToStrategist = (treasuryFeeToVault * strategistFee) / PERCENT_DIVISOR;
+            uint callFeeToUser = (wftmFee * callFee) / PERCENT_DIVISOR;
+            uint treasuryFeeToVault = (wftmFee * treasuryFee) / PERCENT_DIVISOR;
+            uint feeToStrategist = (treasuryFeeToVault * strategistFee) / PERCENT_DIVISOR;
             treasuryFeeToVault -= feeToStrategist;
 
             IERC20Upgradeable(WFTM).safeTransfer(msg.sender, callFeeToUser);
@@ -263,7 +271,7 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
 
     /** @dev Converts WFTM to both sides of the LP token and builds the liquidity pair */
     function _addLiquidity() internal {
-        uint256 wrappedHalf = IERC20Upgradeable(WFTM).balanceOf(address(this)) / 2;
+        uint wrappedHalf = IERC20Upgradeable(WFTM).balanceOf(address(this)) / 2;
         if (wrappedHalf == 0) {
             return;
         }
@@ -289,8 +297,8 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
                 );
         }
 
-        uint256 lp0Bal = IERC20Upgradeable(lpToken0).balanceOf(address(this));
-        uint256 lp1Bal = IERC20Upgradeable(lpToken1).balanceOf(address(this));
+        uint lp0Bal = IERC20Upgradeable(lpToken0).balanceOf(address(this));
+        uint lp1Bal = IERC20Upgradeable(lpToken1).balanceOf(address(this));
 
         IUniswapRouter(PROTOFI_ROUTER).addLiquidity(
             lpToken0,
@@ -305,7 +313,7 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
     }
 
     /**
-     * @dev Gives the necessary allowances to mint cWant, swap rewards etc
+     * @dev Gives the necessary allowances
      */
     function _giveAllowances() internal {
         uint wantAllowance = type(uint).max - IERC20Upgradeable(want).allowance(address(this), MASTER_CHEF);

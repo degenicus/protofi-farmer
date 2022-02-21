@@ -282,7 +282,7 @@ describe('Vaults', function () {
       await strategy.connect(self).harvest();
     });
 
-    xit('should provide yield', async function () {
+    it('should provide yield', async function () {
       const timeToSkip = 36000000;
       const initialUserBalance = await want.balanceOf(selfAddress);
       console.log(initialUserBalance);
