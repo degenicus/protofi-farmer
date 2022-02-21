@@ -57,6 +57,7 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
      * @dev Strategy variables
     */
     uint public allowedSlippage;
+    uint public minProtoToSwap;
 
     /**
      * @dev Initializes the strategy. Sets parameters, saves routes, and gives allowances.
@@ -80,6 +81,8 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
 
         wftmToLp0Route = [WFTM, lpToken0];
         wftmToLp1Route = [WFTM, lpToken1];
+
+        minProtoToSwap = 1000;
 
         _giveAllowances();
     }
@@ -110,14 +113,11 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
      *      Profit is denominated in WFTM, and takes fees into account.
      */
     function estimateHarvest() external view override returns (uint256 profit, uint256 callFeeToUser) {
-        // uint256 rewards = predictScreamAccrued();
-        // if (rewards == 0) {
-        //     return (0, 0);
-        // }
-        // profit = IUniswapRouter(SPOOKY_ROUTER).getAmountsOut(rewards, protoToWftmRoute)[1];
-        // uint256 wftmFee = (profit * totalFee) / PERCENT_DIVISOR;
-        // callFeeToUser = (wftmFee * callFee) / PERCENT_DIVISOR;
-        // profit -= wftmFee;
+        uint pendingProtons = IMasterChef(MASTER_CHEF).pendingProton(poolId, address(this));
+        profit = IUniswapRouter(PROTOFI_ROUTER).getAmountsOut(pendingProtons, protoToWftmRoute)[1];
+        uint wftmFee = (profit * totalFee) / PERCENT_DIVISOR;
+        callFeeToUser = (wftmFee * callFee) / PERCENT_DIVISOR;
+        profit -= wftmFee;
     }
     
     /**
@@ -129,16 +129,20 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
      */
     function retireStrat() external {
         _onlyStrategistOrOwner();
-        _claimRewards();
-        _swapRewardsToWftm();
+        _harvestCore();
+        IMasterChef(MASTER_CHEF).withdraw(poolId, balanceOfPool());
+        uint256 wantBalance = IERC20Upgradeable(want).balanceOf(address(this));
+        IERC20Upgradeable(want).safeTransfer(vault, wantBalance);
     }
 
     /**
-     * @dev Pauses supplied. Withdraws all funds from Scream, leaving rewards behind.
+     * @dev Pauses supplied. Withdraws all funds from the ProtoFi MasterChef, leaving rewards behind.
      */
     function panic() external {
         _onlyStrategistOrOwner();
-
+        IMasterChef(MASTER_CHEF).emergencyWithdraw(poolId);
+        uint256 wantBalance = IERC20Upgradeable(want).balanceOf(address(this));
+        IERC20Upgradeable(want).safeTransfer(vault, wantBalance);
         pause();
     }
 
@@ -226,15 +230,17 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
      * Swaps {PROTO} to {WFTM}
      */
     function _swapRewardsToWftm() internal {
-        uint256 protoBalance = IERC20Upgradeable(PROTO).balanceOf(address(this));
-        uint minOutput = protoBalance * allowedSlippage / PERCENT_DIVISOR;
-        IUniswapRouter(PROTOFI_ROUTER).swapExactTokensForTokensSupportingFeeOnTransferTokens(
-            protoBalance,
-            0,
-            protoToWftmRoute,
-            address(this),
-            block.timestamp
-        );
+        uint protoBalance = IERC20Upgradeable(PROTO).balanceOf(address(this));
+        if (protoBalance >= minProtoToSwap) {
+            uint minOutput = protoBalance * allowedSlippage / PERCENT_DIVISOR;
+            IUniswapRouter(PROTOFI_ROUTER).swapExactTokensForTokensSupportingFeeOnTransferTokens(
+                protoBalance,
+                0,
+                protoToWftmRoute,
+                address(this),
+                block.timestamp
+            );
+        }
     }
 
     /**
@@ -258,6 +264,9 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
     /** @dev Converts WFTM to both sides of the LP token and builds the liquidity pair */
     function _addLiquidity() internal {
         uint256 wrappedHalf = IERC20Upgradeable(WFTM).balanceOf(address(this)) / 2;
+        if (wrappedHalf == 0) {
+            return;
+        }
 
         if (lpToken0 != WFTM) {
             IUniswapRouter(PROTOFI_ROUTER)

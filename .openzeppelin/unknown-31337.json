@@ -3,14 +3,14 @@
   "proxies": [
     {
       "address": "0x5081a39b8A5f0E35a8D959395a630b68B74Dd30f",
-      "txHash": "0x641182afc5354bbd3a031acff0d5a73b3058d54fa6d943fe604ac5b0960a88ab",
+      "txHash": "0xfd01f76f73e899eae0cfc3bd4226d17c26ee13c563f6df40fbcd64bea0788a0e",
       "kind": "uups"
     }
   ],
   "impls": {
-    "9c173ea920a23d21dcd6a966e75ca776ed955391f06de6224a93fc3d13dac846": {
+    "84d56f17e5c4dcc2d3f1fd4ef92195b501c4c5a408e1338a43fb3889f0770e1c": {
       "address": "0x922D6956C99E12DFeB3224DEA977D0939758A1Fe",
-      "txHash": "0xf6fadcf84915650294f4985d964749124e1edb16e76567095a7a466eb5396923",
+      "txHash": "0x69d14b661a6a2b859eca177e9f71433ec9b10f31213e46bab48c134b46234423",
       "layout": {
         "storage": [
           {
@@ -88,7 +88,7 @@
           {
             "contract": "ReaperBaseStrategy",
             "label": "harvestLog",
-            "type": "t_array(t_struct(Harvest)6575_storage)dyn_storage",
+            "type": "t_array(t_struct(Harvest)6692_storage)dyn_storage",
             "src": "contracts\\abstract\\ReaperBaseStrategy.sol:27"
           },
           {
@@ -210,6 +210,12 @@
             "label": "allowedSlippage",
             "type": "t_uint256",
             "src": "contracts\\ReaperAutoCompoundProtofiFarmer.sol:59"
+          },
+          {
+            "contract": "ReaperAutoCompoundProtofiFarmer",
+            "label": "minProtoToSwap",
+            "type": "t_uint256",
+            "src": "contracts\\ReaperAutoCompoundProtofiFarmer.sol:60"
           }
         ],
         "types": {
@@ -222,10 +228,10 @@
           "t_uint256": {
             "label": "uint256"
           },
-          "t_array(t_struct(Harvest)6575_storage)dyn_storage": {
+          "t_array(t_struct(Harvest)6692_storage)dyn_storage": {
             "label": "struct ReaperBaseStrategy.Harvest[]"
           },
-          "t_struct(Harvest)6575_storage": {
+          "t_struct(Harvest)6692_storage": {
             "label": "struct ReaperBaseStrategy.Harvest",
             "members": [
               {

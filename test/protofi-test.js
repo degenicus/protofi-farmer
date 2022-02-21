@@ -282,7 +282,7 @@ describe('Vaults', function () {
       await strategy.connect(self).harvest();
     });
 
-    it('should provide yield', async function () {
+    xit('should provide yield', async function () {
       const timeToSkip = 36000000;
       const initialUserBalance = await want.balanceOf(selfAddress);
       console.log(initialUserBalance);
@@ -312,48 +312,44 @@ describe('Vaults', function () {
   describe('Strategy', function () {
     xit('should be able to pause and unpause', async function () {
       await strategy.pause();
-      const depositAmount = toWantUnit('.05', true);
+      const depositAmount = toWantUnit('0.0007');
       await expect(vault.connect(self).deposit(depositAmount)).to.be.reverted;
       await strategy.unpause();
       await expect(vault.connect(self).deposit(depositAmount)).to.not.be.reverted;
     });
 
     xit('should be able to panic', async function () {
-      const depositAmount = toWantUnit('0.05', true);
+      const depositAmount = toWantUnit('0.0007');
       await vault.connect(self).deposit(depositAmount);
       const vaultBalance = await vault.balance();
       const strategyBalance = await strategy.balanceOf();
       await strategy.panic();
       expect(vaultBalance).to.equal(strategyBalance);
       const newVaultBalance = await vault.balance();
-      // 1e18 "0.000000001"
-      const allowedImprecision = toWantUnit('0.0000001', true);
-      // Panic does not updateBalance so the reported balance is 2x
-      expect(newVaultBalance.div(2)).to.be.closeTo(vaultBalance, allowedImprecision);
+      const allowedImprecision = toWantUnit('0.000000001');
+      expect(newVaultBalance).to.be.closeTo(vaultBalance, allowedImprecision);
     });
 
     xit('should be able to retire strategy', async function () {
-      const depositAmount = toWantUnit('.05', true);
+      const depositAmount = toWantUnit('0.0007');
       await vault.connect(self).deposit(depositAmount);
       const vaultBalance = await vault.balance();
       const strategyBalance = await strategy.balanceOf();
       expect(vaultBalance).to.equal(strategyBalance);
-      // Test needs the require statement to be commented out during the test
       await expect(strategy.retireStrat()).to.not.be.reverted;
       const newVaultBalance = await vault.balance();
       const newStrategyBalance = await strategy.balanceOf();
-      const allowedImprecision = toWantUnit('0.00000001');
+      const allowedImprecision = toWantUnit('0.000000001');
       expect(newVaultBalance).to.be.closeTo(vaultBalance, allowedImprecision);
       expect(newStrategyBalance).to.be.lt(allowedImprecision);
     });
 
     xit('should be able to retire strategy with no balance', async function () {
-      // Test needs the require statement to be commented out during the test
       await expect(strategy.retireStrat()).to.not.be.reverted;
     });
 
     xit('should be able to estimate harvest', async function () {
-      const whaleDepositAmount = toWantUnit('27171', true);
+      const whaleDepositAmount = toWantUnit('0.001');
       await vault.connect(wantWhale).deposit(whaleDepositAmount);
       const minute = 60;
       const hour = 60 * minute;
@@ -361,21 +357,12 @@ describe('Vaults', function () {
       await moveTimeForward(100 * day);
       await strategy.harvest();
       await moveTimeForward(10 * day);
-      await vault.connect(wantWhale).deposit(toWantUnit('1', true));
       const [profit, callFeeToUser] = await strategy.estimateHarvest();
       console.log(`profit: ${profit}`);
       const hasProfit = profit.gt(0);
       const hasCallFee = callFeeToUser.gt(0);
       expect(hasProfit).to.equal(true);
       expect(hasCallFee).to.equal(true);
-    });
-
-    xit('should be able to estimate blocks until liquidation', async function () {
-      const whaleDepositAmount = toWantUnit('27171', true);
-      await vault.connect(wantWhale).deposit(whaleDepositAmount);
-      const blocksUntilLiquidation = await strategy.getblocksUntilLiquidation();
-      console.log(`blocksUntilLiquidation: ${blocksUntilLiquidation}`);
-      expect(blocksUntilLiquidation.gt(0)).to.equal(true);
     });
 
     xit('should not allow implementation upgrades before timelock has passed', async function () {
@@ -385,35 +372,6 @@ describe('Vaults', function () {
       await expect(hre.upgrades.upgradeProxy(strategy.address, StrategyV2)).to.be.revertedWith(
         'cooldown not initiated or still active',
       );
-    });
-
-    xit('should allow implementation upgrades once timelock has passed', async function () {
-      const StrategyV2 = await ethers.getContractFactory('TestReaperAutoCompoundScreamLeverageV2');
-      const timeToSkip = (await strategy.UPGRADE_TIMELOCK()).add(10);
-      await strategy.initiateUpgradeCooldown();
-      await moveTimeForward(timeToSkip.toNumber());
-      await hre.upgrades.upgradeProxy(strategy.address, StrategyV2);
-    });
-
-    xit('successive upgrades need to initiate timelock again', async function () {
-      const StrategyV2 = await ethers.getContractFactory('TestReaperAutoCompoundScreamLeverageV2');
-      const timeToSkip = (await strategy.UPGRADE_TIMELOCK()).add(10);
-      await strategy.initiateUpgradeCooldown();
-      await moveTimeForward(timeToSkip.toNumber());
-      await hre.upgrades.upgradeProxy(strategy.address, StrategyV2);
-
-      const StrategyV3 = await ethers.getContractFactory('TestReaperAutoCompoundScreamLeverageV3');
-      await expect(hre.upgrades.upgradeProxy(strategy.address, StrategyV3)).to.be.revertedWith(
-        'cooldown not initiated or still active',
-      );
-
-      await strategy.initiateUpgradeCooldown();
-      await expect(hre.upgrades.upgradeProxy(strategy.address, StrategyV3)).to.be.revertedWith(
-        'cooldown not initiated or still active',
-      );
-
-      await moveTimeForward(timeToSkip.toNumber());
-      await hre.upgrades.upgradeProxy(strategy.address, StrategyV3);
     });
   });
 });
