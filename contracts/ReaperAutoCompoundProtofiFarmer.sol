@@ -56,9 +56,9 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
 
     /**
      * @dev Strategy variables
-     * {minProtoToSwap} - The minimum amount of reward token to swap (low or 0 amount could cause swap to revert and may not be worth the gas)
+     * {minProtoToSell} - The minimum amount of reward token to swap (low or 0 amount could cause swap to revert and may not be worth the gas)
     */
-    uint public minProtoToSwap;
+    uint public minProtoToSell;
 
     /**
      * @dev Initializes the strategy. Sets parameters, saves routes, and gives allowances.
@@ -82,7 +82,7 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
         wftmToLp0Route = [WFTM, lpToken0];
         wftmToLp1Route = [WFTM, lpToken1];
 
-        minProtoToSwap = 1000;
+        minProtoToSell = 1000;
 
         _giveAllowances();
     }
@@ -118,6 +118,14 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
         uint wftmFee = (profit * totalFee) / PERCENT_DIVISOR;
         callFeeToUser = (wftmFee * callFee) / PERCENT_DIVISOR;
         profit -= wftmFee;
+    }
+
+    /**
+     * @dev Sets the minimum reward the will be sold (too little causes revert from Uniswap)
+     */
+    function setMinProtoToSell(uint256 _minProtoToSell) external {
+        _onlyStrategistOrOwner();
+        minProtoToSell = _minProtoToSell;
     }
     
     /**
@@ -233,7 +241,7 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
      */
     function _swapRewardsToWftm() internal {
         uint protoBalance = IERC20Upgradeable(PROTO).balanceOf(address(this));
-        if (protoBalance >= minProtoToSwap) {
+        if (protoBalance >= minProtoToSell) {
             IUniswapRouter(PROTOFI_ROUTER).swapExactTokensForTokensSupportingFeeOnTransferTokens(
                 protoBalance,
                 0,
