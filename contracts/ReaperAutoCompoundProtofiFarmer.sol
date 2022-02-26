@@ -93,6 +93,7 @@ contract ReaperAutoCompoundProtofiFarmer is ReaperBaseStrategy {
      * The available {want} minus fees is returned to the vault.
      */
     function withdraw(uint _withdrawAmount) external {
+        require(msg.sender == vault, "!vault");
         uint wantBalance = IERC20Upgradeable(want).balanceOf(address(this));
 
         if (wantBalance < _withdrawAmount) {
